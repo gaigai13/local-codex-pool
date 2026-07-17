@@ -24,9 +24,14 @@ if (-not (Test-Path -LiteralPath $CpampExe)) {
     Expand-Archive -LiteralPath $CpampZip -DestinationPath (Join-Path $Runtime "cpamp") -Force
 }
 
+$EncryptedBundle = Join-Path $Root "secrets.enc"
 $LocalSecrets = Join-Path $Root ".local\secrets.json"
-if (-not (Test-Path -LiteralPath $LocalSecrets)) {
-    if (-not (Test-Path -LiteralPath (Join-Path $Root "secrets.enc"))) { throw "secrets.enc not found" }
+$LocalBundleHash = Join-Path $Root ".local\secrets.sha256"
+if (-not (Test-Path -LiteralPath $EncryptedBundle)) { throw "secrets.enc not found" }
+$BundleHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $EncryptedBundle).Hash
+$SavedBundleHash = if (Test-Path -LiteralPath $LocalBundleHash) { (Get-Content -Raw -LiteralPath $LocalBundleHash).Trim() } else { "" }
+$SecretsNeedRefresh = -not (Test-Path -LiteralPath $LocalSecrets) -or $SavedBundleHash -ne $BundleHash
+if ($SecretsNeedRefresh) {
     $PasswordWasProvided = -not [string]::IsNullOrWhiteSpace($env:CPA_BUNDLE_PASSWORD)
     $Bstr = [IntPtr]::Zero
     try {
@@ -37,6 +42,7 @@ if (-not (Test-Path -LiteralPath $LocalSecrets)) {
         }
         & node (Join-Path $Root "scripts\secrets.mjs") decrypt secrets.enc .local/secrets.json
         if ($LASTEXITCODE -ne 0) { throw "Secret decryption failed" }
+        [IO.File]::WriteAllText($LocalBundleHash, $BundleHash, [Text.UTF8Encoding]::new($false))
     } finally {
         if (-not $PasswordWasProvided) { Remove-Item Env:CPA_BUNDLE_PASSWORD -ErrorAction SilentlyContinue }
         if ($Bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Bstr) }

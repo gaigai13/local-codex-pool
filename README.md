@@ -50,3 +50,17 @@ git push
 ```
 
 不要遗失加密密码；仓库中不保存密码，也无法恢复密码。
+## 新增账号
+
+1. 将新的 `*.sub2api-active.json` 放到项目根目录。
+2. 运行 `node .\import-sub2api.mjs`，让当前电脑立即加载新账号。
+3. 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update-secrets.ps1`，输入并确认加密密码。
+4. 提交并推送：
+
+```powershell
+git add secrets.enc
+git commit -m "Update encrypted accounts"
+git push
+```
+
+其他电脑运行 `git pull` 后再次执行 `.\start.cmd`。脚本检测到 `secrets.enc` 更新时会要求输入密码，并自动重新解密和导入全部账号。
